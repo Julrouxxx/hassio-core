@@ -1,0 +1,13 @@
+{
+  "domain": "goodhome",
+  "name": "GoodHome",
+  "config_flow": true,
+  "documentation": "https://www.home-assistant.io/integrations/goodhome",
+  "requirements": [],
+  "ssdp": [],
+  "zeroconf": [],
+  "homekit": {},
+  "dependencies": [],
+  "codeowners": ["@Julrouxxx"],
+  "iot_class": "cloud_polling"
+}
