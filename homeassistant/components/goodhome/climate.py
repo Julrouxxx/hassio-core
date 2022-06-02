@@ -106,21 +106,32 @@ class GoodHomeClimate(ClimateEntity):
     def update(self):
         """Update trigger."""
         goodhome = GoodHomeHelper(self.hass.data[DOMAIN][self.entry_id])
+        credentials = self.hass.config_entries.async_get_entry(
+             self.entry_id
+        )
         try:
             token = goodhome.refresh()
         except AuthenticationError:
-            credentials = self.hass.config_entries.async_get_entry(
-                self.entry_id
-            ).as_dict()
+
             new_creds = goodhome.authenticate(
-                credentials["username"], credentials["password"]
+                credentials.data["username"], credentials.data["password"]
             )
-            self.hass.data[DOMAIN][self.entry_id]["refresh_token"] = new_creds[
-                "refresh_token"
-            ]
+            self.hass.config_entries.async_update_entry(
+                self.entry_id,
+                data={
+                    **credentials.data,
+                    "refresh_token": new_creds['refresh_token'],
+                },
+            )
             token = new_creds["token"]
         if token is not None:
-            self.hass.data[DOMAIN][self.entry_id]["token"] = token
+            self.hass.config_entries.async_update_entry(
+                self.entry_id,
+                data={
+                    **credentials.data,
+                    "token": token,
+                },
+            )
         data = goodhome.get_heater(self.unique_id)
 
         self._current_temperature = data["state"]["currentTemp"]
