@@ -21,6 +21,30 @@ async def async_setup_entry(
     # The hub is loaded from the associated hass.data entry that was created in the
     # __init__.async_setup_entry function
     goodhome = GoodHomeHelper(hass.data[DOMAIN][config_entry.entry_id])
+    try:
+		token = goodhome.refresh()
+    except AuthenticationError:
+
+        new_creds = goodhome.authenticate(
+            config_entry.data["username"], config_entry.data["password"]
+        )
+        hass.config_entries.async_update_entry(
+            config_entry,
+            data={
+                **config_entry.data,
+                "refresh_token": new_creds['refresh_token'],
+            },
+        )
+        token = new_creds["token"]
+    if token is not None:
+        hass.config_entries.async_update_entry(
+            config_entry,
+            data={
+                **config_entry.data,
+                "token": token,
+            },
+        )
+    goodhome = GoodHomeHelper(hass.data[DOMAIN][config_entry.entry_id])
     heaters = await hass.async_add_executor_job(goodhome.get_heaters)
     # Add all entities to HA
     for device in heaters:
@@ -117,7 +141,7 @@ class GoodHomeClimate(ClimateEntity):
                 credentials.data["username"], credentials.data["password"]
             )
             self.hass.config_entries.async_update_entry(
-                self.entry_id,
+                credentials,
                 data={
                     **credentials.data,
                     "refresh_token": new_creds['refresh_token'],
@@ -126,12 +150,13 @@ class GoodHomeClimate(ClimateEntity):
             token = new_creds["token"]
         if token is not None:
             self.hass.config_entries.async_update_entry(
-                self.entry_id,
+                credentials,
                 data={
                     **credentials.data,
                     "token": token,
                 },
             )
+			goodhome = GoodHomeHelper(hass.data[DOMAIN][config_entry.entry_id])
         data = goodhome.get_heater(self.unique_id)
 
         self._current_temperature = data["state"]["currentTemp"]
