@@ -22,9 +22,8 @@ async def async_setup_entry(
     # __init__.async_setup_entry function
     goodhome = GoodHomeHelper(hass.data[DOMAIN][config_entry.entry_id])
     try:
-		token = goodhome.refresh()
+        token = goodhome.refresh()
     except AuthenticationError:
-
         new_creds = goodhome.authenticate(
             config_entry.data["username"], config_entry.data["password"]
         )
@@ -156,7 +155,7 @@ class GoodHomeClimate(ClimateEntity):
                     "token": token,
                 },
             )
-			goodhome = GoodHomeHelper(hass.data[DOMAIN][config_entry.entry_id])
+            goodhome = GoodHomeHelper(hass.data[DOMAIN][config_entry.entry_id])
         data = goodhome.get_heater(self.unique_id)
 
         self._current_temperature = data["state"]["currentTemp"]
