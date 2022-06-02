@@ -22,9 +22,9 @@ async def async_setup_entry(
     # __init__.async_setup_entry function
     goodhome = GoodHomeHelper(hass.data[DOMAIN][config_entry.entry_id])
     try:
-        token = goodhome.refresh()
+        token = await hass.async_add_executor_job(goodhome.refresh)
     except AuthenticationError:
-        new_creds = goodhome.authenticate(
+        new_creds = await hass.async_add_executor_job(goodhome.authenticate, 
             config_entry.data["username"], config_entry.data["password"]
         )
         hass.config_entries.async_update_entry(
@@ -43,7 +43,6 @@ async def async_setup_entry(
                 "token": token,
             },
         )
-    goodhome = GoodHomeHelper(hass.data[DOMAIN][config_entry.entry_id])
     heaters = await hass.async_add_executor_job(goodhome.get_heaters)
     # Add all entities to HA
     for device in heaters:
@@ -155,7 +154,6 @@ class GoodHomeClimate(ClimateEntity):
                     "token": token,
                 },
             )
-            goodhome = GoodHomeHelper(hass.data[DOMAIN][config_entry.entry_id])
         data = goodhome.get_heater(self.unique_id)
 
         self._current_temperature = data["state"]["currentTemp"]
