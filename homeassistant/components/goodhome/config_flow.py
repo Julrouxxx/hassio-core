@@ -52,7 +52,7 @@ class GoodHomeHelper:
         ).json()
         if "token" not in response:
             raise AuthenticationError
-		self.token = response["token"]
+        self.token = response["token"]
         return response["token"]
 
     def authenticate(self, username: str, password: str) -> dict[str, Any]:
@@ -62,8 +62,8 @@ class GoodHomeHelper:
         ).json()  # type: dict[str, Any]
         if "token" not in response:
             return {}
-		self.token = response["token"]
-		self.refresh_token = response["refresh_token"]
+        self.token = response["token"]
+        self.refresh_token = response["refresh_token"]
         return {
             "token": response["token"],
             "refresh_token": response["refresh_token"],
