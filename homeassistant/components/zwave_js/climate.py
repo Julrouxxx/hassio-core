@@ -66,7 +66,7 @@ ZW_HVAC_MODE_MAP: dict[int, HVACMode] = {
     ThermostatMode.AUTO: HVACMode.HEAT_COOL,
     ThermostatMode.AUXILIARY: HVACMode.HEAT,
     ThermostatMode.FAN: HVACMode.FAN_ONLY,
-    ThermostatMode.FURNANCE: HVACMode.HEAT,
+    ThermostatMode.FURNACE: HVACMode.HEAT,
     ThermostatMode.DRY: HVACMode.DRY,
     ThermostatMode.AUTO_CHANGE_OVER: HVACMode.HEAT_COOL,
     ThermostatMode.HEATING_ECON: HVACMode.HEAT,
@@ -238,7 +238,7 @@ class ZWaveClimate(ZWaveBaseEntity, ClimateEntity):
         if self._current_mode is None or self._current_mode.value is None:
             # Thermostat(valve) with no support for setting a mode is considered heating-only
             return [ThermostatSetpointType.HEATING]
-        return THERMOSTAT_MODE_SETPOINT_MAP.get(int(self._current_mode.value), [])  # type: ignore[no-any-return]
+        return THERMOSTAT_MODE_SETPOINT_MAP.get(int(self._current_mode.value), [])
 
     @property
     def temperature_unit(self) -> str:

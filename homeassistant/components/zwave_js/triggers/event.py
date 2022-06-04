@@ -8,7 +8,7 @@ import voluptuous as vol
 from zwave_js_server.client import Client
 from zwave_js_server.model.controller import CONTROLLER_EVENT_MODEL_MAP
 from zwave_js_server.model.driver import DRIVER_EVENT_MODEL_MAP
-from zwave_js_server.model.node import NODE_EVENT_MODEL_MAP, Node
+from zwave_js_server.model.node import NODE_EVENT_MODEL_MAP
 
 from homeassistant.components.automation import (
     AutomationActionType,
@@ -20,7 +20,6 @@ from homeassistant.components.zwave_js.const import (
     ATTR_EVENT_DATA,
     ATTR_EVENT_SOURCE,
     ATTR_NODE_ID,
-    ATTR_NODES,
     ATTR_PARTIAL_DICT_MATCH,
     DATA_CLIENT,
     DOMAIN,
@@ -30,11 +29,12 @@ from homeassistant.components.zwave_js.helpers import (
     get_device_id,
     get_home_and_node_id_from_device_entry,
 )
-from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import ATTR_DEVICE_ID, ATTR_ENTITY_ID, CONF_PLATFORM
 from homeassistant.core import CALLBACK_TYPE, HassJob, HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv, device_registry as dr
 from homeassistant.helpers.typing import ConfigType
+
+from .helpers import async_bypass_dynamic_config_validation
 
 # Platform type should be <DOMAIN>.<SUBMODULE_NAME>
 PLATFORM_TYPE = f"{DOMAIN}.{__name__.rsplit('.', maxsplit=1)[-1]}"
@@ -115,22 +115,20 @@ async def async_validate_trigger_config(
     """Validate config."""
     config = TRIGGER_SCHEMA(config)
 
-    if config[ATTR_EVENT_SOURCE] == "node":
-        config[ATTR_NODES] = async_get_nodes_from_targets(hass, config)
-        if not config[ATTR_NODES]:
-            raise vol.Invalid(
-                f"No nodes found for given {ATTR_DEVICE_ID}s or {ATTR_ENTITY_ID}s."
-            )
+    if ATTR_CONFIG_ENTRY_ID in config:
+        entry_id = config[ATTR_CONFIG_ENTRY_ID]
+        if hass.config_entries.async_get_entry(entry_id) is None:
+            raise vol.Invalid(f"Config entry '{entry_id}' not found")
 
-    if ATTR_CONFIG_ENTRY_ID not in config:
+    if async_bypass_dynamic_config_validation(hass, config):
         return config
 
-    entry_id = config[ATTR_CONFIG_ENTRY_ID]
-    if (entry := hass.config_entries.async_get_entry(entry_id)) is None:
-        raise vol.Invalid(f"Config entry '{entry_id}' not found")
-
-    if entry.state is not ConfigEntryState.LOADED:
-        raise vol.Invalid(f"Config entry '{entry_id}' not loaded")
+    if config[ATTR_EVENT_SOURCE] == "node" and not async_get_nodes_from_targets(
+        hass, config
+    ):
+        raise vol.Invalid(
+            f"No nodes found for given {ATTR_DEVICE_ID}s or {ATTR_ENTITY_ID}s."
+        )
 
     return config
 
@@ -144,7 +142,12 @@ async def async_attach_trigger(
     platform_type: str = PLATFORM_TYPE,
 ) -> CALLBACK_TYPE:
     """Listen for state changes based on configuration."""
-    nodes: set[Node] = config.get(ATTR_NODES, {})
+    dev_reg = dr.async_get(hass)
+    nodes = async_get_nodes_from_targets(hass, config, dev_reg=dev_reg)
+    if config[ATTR_EVENT_SOURCE] == "node" and not nodes:
+        raise ValueError(
+            f"No nodes found for given {ATTR_DEVICE_ID}s or {ATTR_ENTITY_ID}s."
+        )
 
     event_source = config[ATTR_EVENT_SOURCE]
     event_name = config[ATTR_EVENT]
@@ -198,8 +201,6 @@ async def async_attach_trigger(
         ] = f"{payload['description']} with event data: {event_data}"
 
         hass.async_run_hass_job(job, {"trigger": payload})
-
-    dev_reg = dr.async_get(hass)
 
     if not nodes:
         entry_id = config[ATTR_CONFIG_ENTRY_ID]

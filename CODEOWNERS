@@ -6,6 +6,7 @@
 
 # Home Assistant Core
 setup.cfg @home-assistant/core
+pyproject.toml @home-assistant/core
 /homeassistant/*.py @home-assistant/core
 /homeassistant/helpers/ @home-assistant/core
 /homeassistant/util/ @home-assistant/core
@@ -363,6 +364,7 @@ build.json @home-assistant/supervisor
 /tests/components/fronius/ @nielstron @farmio
 /homeassistant/components/frontend/ @home-assistant/frontend
 /tests/components/frontend/ @home-assistant/frontend
+/homeassistant/components/frontier_silicon/ @wlcrs
 /homeassistant/components/garages_amsterdam/ @klaasnicolaas
 /tests/components/garages_amsterdam/ @klaasnicolaas
 /homeassistant/components/gdacs/ @exxamalte
@@ -418,6 +420,10 @@ build.json @home-assistant/supervisor
 /tests/components/guardian/ @bachya
 /homeassistant/components/habitica/ @ASMfreaK @leikoilja
 /tests/components/habitica/ @ASMfreaK @leikoilja
+/homeassistant/components/hardkernel/ @home-assistant/core
+/tests/components/hardkernel/ @home-assistant/core
+/homeassistant/components/hardware/ @home-assistant/core
+/tests/components/hardware/ @home-assistant/core
 /homeassistant/components/harmony/ @ehendrix23 @bramkragten @bdraco @mkeesey @Aohzan
 /tests/components/harmony/ @ehendrix23 @bramkragten @bdraco @mkeesey @Aohzan
 /homeassistant/components/hassio/ @home-assistant/supervisor
@@ -463,8 +469,8 @@ build.json @home-assistant/supervisor
 /tests/components/huisbaasje/ @dennisschroer
 /homeassistant/components/humidifier/ @home-assistant/core @Shulyaka
 /tests/components/humidifier/ @home-assistant/core @Shulyaka
-/homeassistant/components/hunterdouglas_powerview/ @bdraco @trullock
-/tests/components/hunterdouglas_powerview/ @bdraco @trullock
+/homeassistant/components/hunterdouglas_powerview/ @bdraco @kingy444 @trullock
+/tests/components/hunterdouglas_powerview/ @bdraco @kingy444 @trullock
 /homeassistant/components/hvv_departures/ @vigonotion
 /tests/components/hvv_departures/ @vigonotion
 /homeassistant/components/hydrawise/ @ptcryan
@@ -578,8 +584,8 @@ build.json @home-assistant/supervisor
 /tests/components/local_ip/ @issacg
 /homeassistant/components/lock/ @home-assistant/core
 /tests/components/lock/ @home-assistant/core
-/homeassistant/components/logbook/ @home-assistant/core
-/tests/components/logbook/ @home-assistant/core
+/homeassistant/components/logbook/ @home-assistant/core @bdraco
+/tests/components/logbook/ @home-assistant/core @bdraco
 /homeassistant/components/logger/ @home-assistant/core
 /tests/components/logger/ @home-assistant/core
 /homeassistant/components/logi_circle/ @evanjd
@@ -831,6 +837,8 @@ build.json @home-assistant/supervisor
 /tests/components/rainmachine/ @bachya
 /homeassistant/components/random/ @fabaff
 /tests/components/random/ @fabaff
+/homeassistant/components/raspberry_pi/ @home-assistant/core
+/tests/components/raspberry_pi/ @home-assistant/core
 /homeassistant/components/rdw/ @frenck
 /tests/components/rdw/ @frenck
 /homeassistant/components/recollect_waste/ @bachya
@@ -881,8 +889,8 @@ build.json @home-assistant/supervisor
 /homeassistant/components/scene/ @home-assistant/core
 /tests/components/scene/ @home-assistant/core
 /homeassistant/components/schluter/ @prairieapps
-/homeassistant/components/scrape/ @fabaff
-/tests/components/scrape/ @fabaff
+/homeassistant/components/scrape/ @fabaff @gjohansson-ST
+/tests/components/scrape/ @fabaff @gjohansson-ST
 /homeassistant/components/screenlogic/ @dieselrabbit @bdraco
 /tests/components/screenlogic/ @dieselrabbit @bdraco
 /homeassistant/components/script/ @home-assistant/core
@@ -1057,8 +1065,8 @@ build.json @home-assistant/supervisor
 /tests/components/todoist/ @boralyl
 /homeassistant/components/tolo/ @MatthiasLohr
 /tests/components/tolo/ @MatthiasLohr
-/homeassistant/components/tomorrowio/ @raman325
-/tests/components/tomorrowio/ @raman325
+/homeassistant/components/tomorrowio/ @raman325 @lymanepp
+/tests/components/tomorrowio/ @raman325 @lymanepp
 /homeassistant/components/totalconnect/ @austinmroczek
 /tests/components/totalconnect/ @austinmroczek
 /homeassistant/components/tplink/ @rytilahti @thegardenmonkey @bdraco
