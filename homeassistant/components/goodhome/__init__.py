@@ -6,18 +6,27 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
+from .coordinator import GoodHomeCoordinator
+from .goodhome import GoodHomeHelper
 
-PLATFORMS: list[Platform] = [Platform.CLIMATE]
+PLATFORMS: list[Platform] = [Platform.CLIMATE, Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up GoodHome from a config entry.."""
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = entry.data
-
+    hass.data.setdefault(DOMAIN, {entry.entry_id: {}})
+    hass.data[DOMAIN][entry.entry_id] = {
+        "credentials": entry.data,
+        "coordinator": GoodHomeCoordinator(
+            hass, GoodHomeHelper(entry.data), entry.entry_id
+        ),
+    }
     hass.async_create_task(
-        hass.config_entries.async_forward_entry_setup(entry, "climate")
+        hass.config_entries.async_forward_entry_setup(entry, PLATFORMS[0])
     )
-
+    hass.async_create_task(
+        hass.config_entries.async_forward_entry_setup(entry, PLATFORMS[1])
+    )
     return True
 
 

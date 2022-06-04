@@ -1,14 +1,14 @@
 """Entity class for GoodHome heaters ."""
-from multiprocessing import AuthenticationError
-
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import ClimateEntityFeature, HVACMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import TEMP_CELSIUS
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .config_flow import GoodHomeHelper
 from .const import DOMAIN
 
 
@@ -20,52 +20,42 @@ async def async_setup_entry(
     """Add Entity when entry is setup."""
     # The hub is loaded from the associated hass.data entry that was created in the
     # __init__.async_setup_entry function
-    goodhome = GoodHomeHelper(hass.data[DOMAIN][config_entry.entry_id])
+    coordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
+
     try:
-        token = await hass.async_add_executor_job(goodhome.refresh)
-    except AuthenticationError:
-        new_creds = await hass.async_add_executor_job(goodhome.authenticate, 
-            config_entry.data["username"], config_entry.data["password"]
-        )
-        hass.config_entries.async_update_entry(
-            config_entry,
-            data={
-                **config_entry.data,
-                "refresh_token": new_creds['refresh_token'],
-            },
-        )
-        token = new_creds["token"]
-    if token is not None:
-        hass.config_entries.async_update_entry(
-            config_entry,
-            data={
-                **config_entry.data,
-                "token": token,
-            },
-        )
-    heaters = await hass.async_add_executor_job(goodhome.get_heaters)
+        await coordinator.async_config_entry_first_refresh()
+    except ConfigEntryNotReady:
+        print("GoodHome integration not ready")
     # Add all entities to HA
-    for device in heaters:
-        add_entities(
-            [GoodHomeClimate(device["_id"], config_entry.entry_id)], True  # type: ignore[index]
-        )
+    for device in coordinator.data:
+        add_entities([GoodHomeClimate(coordinator, device["_id"])])
 
 
-class GoodHomeClimate(ClimateEntity):
+class GoodHomeClimate(CoordinatorEntity, ClimateEntity):
     """GoodHome Entity."""
 
-    def __init__(self, id_device: str, entry_id: str) -> None:
+    def __init__(self, coordinator: CoordinatorEntity, id_device: str) -> None:
         """Initialize the entity."""
+        super().__init__(coordinator)
+        for device in self.coordinator.data:
+            if device["_id"] == id_device:
+                data = device
+                break
+        if data is None:
+            return
+        self.manufacturer = data["model"]
+        self._name = data["name"]
+        self.model = data["state"]["codeName"]
+        self.fw_version = data["state"]["fwVer"]
+        self._current_temperature = data["state"]["currentTemp"]
+        self._preset_mode = "ECO" if data["state"]["targetMode"] == 61 else "COMFORT"
+        self._current_humidity = data["state"]["humidity"]
+        self._target_temperature = data["state"]["targetTemp"]
         self._unique_id = id_device
-        self.entry_id = entry_id
         self._temperature_unit = TEMP_CELSIUS
         self._hvac_modes = [HVACMode.HEAT]
         self._hvac_mode = HVACMode.HEAT
         self._preset_modes = ["ECO", "COMFORT"]
-        self._preset_mode = "ECO"
-        self._current_temperature = 0
-        self._current_humidity = 0
-        self._target_temperature = 0
         self._supported_features = (
             ClimateEntityFeature.PRESET_MODE | ClimateEntityFeature.TARGET_TEMPERATURE
         )
@@ -94,6 +84,17 @@ class GoodHomeClimate(ClimateEntity):
     def hvac_modes(self) -> list[HVACMode]:
         """Get HVAC modes."""
         return self._hvac_modes
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Get device info."""
+        return {
+            "identifiers": {(DOMAIN, self._unique_id)},
+            "name": self._name,
+            "manufacturer": self.manufacturer,
+            "model": self.model,
+            "sw_version": self.fw_version,
+        }
 
     @property
     def preset_modes(self) -> list[str]:
@@ -125,38 +126,21 @@ class GoodHomeClimate(ClimateEntity):
         """Get suppoerted features."""
         return self._supported_features
 
-    def update(self):
-        """Update trigger."""
-        goodhome = GoodHomeHelper(self.hass.data[DOMAIN][self.entry_id])
-        credentials = self.hass.config_entries.async_get_entry(
-             self.entry_id
-        )
-        try:
-            token = goodhome.refresh()
-        except AuthenticationError:
-
-            new_creds = goodhome.authenticate(
-                credentials.data["username"], credentials.data["password"]
-            )
-            self.hass.config_entries.async_update_entry(
-                credentials,
-                data={
-                    **credentials.data,
-                    "refresh_token": new_creds['refresh_token'],
-                },
-            )
-            token = new_creds["token"]
-        if token is not None:
-            self.hass.config_entries.async_update_entry(
-                credentials,
-                data={
-                    **credentials.data,
-                    "token": token,
-                },
-            )
-        data = goodhome.get_heater(self.unique_id)
-
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        for device in self.coordinator.data:
+            if device["_id"] == self._unique_id:
+                data = device
+                break
+        if data is None:
+            return
+        self.manufacturer = data["model"]
+        self._name = data["name"]
+        self.model = data["state"]["codeName"]
+        self.fw_version = data["state"]["fwVer"]
         self._current_temperature = data["state"]["currentTemp"]
         self._preset_mode = "ECO" if data["state"]["targetMode"] == 61 else "COMFORT"
         self._current_humidity = data["state"]["humidity"]
         self._target_temperature = data["state"]["targetTemp"]
+        self.async_write_ha_state()
