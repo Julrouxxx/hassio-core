@@ -39,6 +39,8 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     )
     if auth == {}:
         raise InvalidAuth
+    auth["username"] = data["username"]
+    auth["password"] = data["password"]
     return auth
 
 
