@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Callable, MutableMapping
 from dataclasses import dataclass, field
 import logging
 from typing import Any, cast
@@ -12,37 +12,26 @@ from aioesphomeapi import (
     APIClient,
     APIVersion,
     BinarySensorInfo,
-    BinarySensorState,
     CameraInfo,
-    CameraState,
     ClimateInfo,
-    ClimateState,
     CoverInfo,
-    CoverState,
     DeviceInfo,
     EntityInfo,
     EntityState,
     FanInfo,
-    FanState,
     LightInfo,
-    LightState,
     LockInfo,
-    LockState,
     MediaPlayerInfo,
-    MediaPlayerState,
     NumberInfo,
-    NumberState,
     SelectInfo,
-    SelectState,
     SensorInfo,
-    SensorState,
     SwitchInfo,
-    SwitchState,
     TextSensorInfo,
-    TextSensorState,
     UserService,
 )
 from aioesphomeapi.model import ButtonInfo
+from bleak.backends.service import BleakGATTServiceCollection
+from lru import LRU  # pylint: disable=no-name-in-module
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -56,8 +45,8 @@ _LOGGER = logging.getLogger(__name__)
 # Mapping from ESPHome info type to HA platform
 INFO_TYPE_TO_PLATFORM: dict[type[EntityInfo], str] = {
     BinarySensorInfo: Platform.BINARY_SENSOR,
-    ButtonInfo: Platform.BINARY_SENSOR,
-    CameraInfo: Platform.BINARY_SENSOR,
+    ButtonInfo: Platform.BUTTON,
+    CameraInfo: Platform.CAMERA,
     ClimateInfo: Platform.CLIMATE,
     CoverInfo: Platform.COVER,
     FanInfo: Platform.FAN,
@@ -70,23 +59,7 @@ INFO_TYPE_TO_PLATFORM: dict[type[EntityInfo], str] = {
     SwitchInfo: Platform.SWITCH,
     TextSensorInfo: Platform.SENSOR,
 }
-
-STATE_TYPE_TO_COMPONENT_KEY = {
-    BinarySensorState: Platform.BINARY_SENSOR,
-    EntityState: Platform.BINARY_SENSOR,
-    CameraState: Platform.BINARY_SENSOR,
-    ClimateState: Platform.CLIMATE,
-    CoverState: Platform.COVER,
-    FanState: Platform.FAN,
-    LightState: Platform.LIGHT,
-    LockState: Platform.LOCK,
-    MediaPlayerState: Platform.MEDIA_PLAYER,
-    NumberState: Platform.NUMBER,
-    SelectState: Platform.SELECT,
-    SensorState: Platform.SENSOR,
-    SwitchState: Platform.SWITCH,
-    TextSensorState: Platform.SENSOR,
-}
+MAX_CACHED_SERVICES = 128
 
 
 @dataclass
@@ -96,7 +69,7 @@ class RuntimeEntryData:
     entry_id: str
     client: APIClient
     store: Store
-    state: dict[str, dict[int, EntityState]] = field(default_factory=dict)
+    state: dict[type[EntityState], dict[int, EntityState]] = field(default_factory=dict)
     info: dict[str, dict[int, EntityInfo]] = field(default_factory=dict)
 
     # A second list of EntityInfo objects
@@ -111,12 +84,73 @@ class RuntimeEntryData:
     api_version: APIVersion = field(default_factory=APIVersion)
     cleanup_callbacks: list[Callable[[], None]] = field(default_factory=list)
     disconnect_callbacks: list[Callable[[], None]] = field(default_factory=list)
-    state_subscriptions: dict[tuple[str, int], Callable[[], None]] = field(
-        default_factory=dict
-    )
+    state_subscriptions: dict[
+        tuple[type[EntityState], int], Callable[[], None]
+    ] = field(default_factory=dict)
     loaded_platforms: set[str] = field(default_factory=set)
     platform_load_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     _storage_contents: dict[str, Any] | None = None
+    ble_connections_free: int = 0
+    ble_connections_limit: int = 0
+    _ble_connection_free_futures: list[asyncio.Future[int]] = field(
+        default_factory=list
+    )
+    _gatt_services_cache: MutableMapping[int, BleakGATTServiceCollection] = field(
+        default_factory=lambda: LRU(MAX_CACHED_SERVICES)  # type: ignore[no-any-return]
+    )
+    _gatt_mtu_cache: MutableMapping[int, int] = field(
+        default_factory=lambda: LRU(MAX_CACHED_SERVICES)  # type: ignore[no-any-return]
+    )
+
+    @property
+    def name(self) -> str:
+        """Return the name of the device."""
+        return self.device_info.name if self.device_info else self.entry_id
+
+    def get_gatt_services_cache(
+        self, address: int
+    ) -> BleakGATTServiceCollection | None:
+        """Get the BleakGATTServiceCollection for the given address."""
+        return self._gatt_services_cache.get(address)
+
+    def set_gatt_services_cache(
+        self, address: int, services: BleakGATTServiceCollection
+    ) -> None:
+        """Set the BleakGATTServiceCollection for the given address."""
+        self._gatt_services_cache[address] = services
+
+    def get_gatt_mtu_cache(self, address: int) -> int | None:
+        """Get the mtu cache for the given address."""
+        return self._gatt_mtu_cache.get(address)
+
+    def set_gatt_mtu_cache(self, address: int, mtu: int) -> None:
+        """Set the mtu cache for the given address."""
+        self._gatt_mtu_cache[address] = mtu
+
+    @callback
+    def async_update_ble_connection_limits(self, free: int, limit: int) -> None:
+        """Update the BLE connection limits."""
+        _LOGGER.debug(
+            "%s: BLE connection limits: used=%s free=%s limit=%s",
+            self.name,
+            limit - free,
+            free,
+            limit,
+        )
+        self.ble_connections_free = free
+        self.ble_connections_limit = limit
+        if free:
+            for fut in self._ble_connection_free_futures:
+                fut.set_result(free)
+            self._ble_connection_free_futures.clear()
+
+    async def wait_for_ble_connections_free(self) -> int:
+        """Wait until there are free BLE connections."""
+        if self.ble_connections_free > 0:
+            return self.ble_connections_free
+        fut: asyncio.Future[int] = asyncio.Future()
+        self._ble_connection_free_futures.append(fut)
+        return await fut
 
     @callback
     def async_remove_entity(
@@ -131,13 +165,8 @@ class RuntimeEntryData:
     ) -> None:
         async with self.platform_load_lock:
             needed = platforms - self.loaded_platforms
-            tasks = []
-            for platform in needed:
-                tasks.append(
-                    hass.config_entries.async_forward_entry_setup(entry, platform)
-                )
-            if tasks:
-                await asyncio.wait(tasks)
+            if needed:
+                await hass.config_entries.async_forward_entry_setups(entry, needed)
             self.loaded_platforms |= needed
 
     async def async_update_static_infos(
@@ -160,26 +189,26 @@ class RuntimeEntryData:
     @callback
     def async_subscribe_state_update(
         self,
-        component_key: str,
+        state_type: type[EntityState],
         state_key: int,
         entity_callback: Callable[[], None],
     ) -> Callable[[], None]:
         """Subscribe to state updates."""
 
         def _unsubscribe() -> None:
-            self.state_subscriptions.pop((component_key, state_key))
+            self.state_subscriptions.pop((state_type, state_key))
 
-        self.state_subscriptions[(component_key, state_key)] = entity_callback
+        self.state_subscriptions[(state_type, state_key)] = entity_callback
         return _unsubscribe
 
     @callback
     def async_update_state(self, state: EntityState) -> None:
         """Distribute an update of state information to the target."""
-        component_key = STATE_TYPE_TO_COMPONENT_KEY[type(state)]
-        subscription_key = (component_key, state.key)
-        self.state[component_key][state.key] = state
+        subscription_key = (type(state), state.key)
+        self.state[type(state)][state.key] = state
         _LOGGER.debug(
-            "Dispatching update with key %s: %s",
+            "%s: dispatching update with key %s: %s",
+            self.name,
             subscription_key,
             state,
         )

@@ -165,9 +165,8 @@ class GenericCamera(Camera):
             self._stream_source.hass = hass
         self._limit_refetch = device_info[CONF_LIMIT_REFETCH_TO_URL_CHANGE]
         self._attr_frame_interval = 1 / device_info[CONF_FRAMERATE]
-        self._attr_supported_features = (
-            CameraEntityFeature.STREAM if self._stream_source else 0
-        )
+        if self._stream_source:
+            self._attr_supported_features = CameraEntityFeature.STREAM
         self.content_type = device_info[CONF_CONTENT_TYPE]
         self.verify_ssl = device_info[CONF_VERIFY_SSL]
         if device_info.get(CONF_RTSP_TRANSPORT):
@@ -228,7 +227,13 @@ class GenericCamera(Camera):
         try:
             stream_url = self._stream_source.async_render(parse_result=False)
             url = yarl.URL(stream_url)
-            if not url.user and not url.password and self._username and self._password:
+            if (
+                not url.user
+                and not url.password
+                and self._username
+                and self._password
+                and url.is_absolute()
+            ):
                 url = url.with_user(self._username).with_password(self._password)
             return str(url)
         except TemplateError as err:
