@@ -1,7 +1,7 @@
 """Entity class for GoodHome heaters temperature and humidity sensors ."""
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, TEMP_CELSIUS
+from homeassistant.const import PERCENTAGE, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.entity import DeviceInfo
@@ -74,7 +74,7 @@ class GoodHomeSensor(CoordinatorEntity, SensorEntity):
     @property
     def native_unit_of_measurement(self) -> str:
         """Get Always C."""
-        return TEMP_CELSIUS if self.type == "temperature" else PERCENTAGE
+        return UnitOfTemperature.CELSIUS if self.type == "temperature" else PERCENTAGE
 
     @property
     def device_info(self) -> DeviceInfo:
