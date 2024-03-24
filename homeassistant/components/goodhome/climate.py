@@ -2,7 +2,7 @@
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import ClimateEntityFeature, HVACMode
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import TEMP_CELSIUS
+from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.entity import DeviceInfo
@@ -52,7 +52,7 @@ class GoodHomeClimate(CoordinatorEntity, ClimateEntity):
         self._current_humidity = data["state"]["humidity"]
         self._target_temperature = data["state"]["targetTemp"]
         self._unique_id = id_device
-        self._temperature_unit = TEMP_CELSIUS
+        self._temperature_unit = UnitOfTemperature.CELSIUS
         self._hvac_modes = [HVACMode.HEAT]
         self._hvac_mode = HVACMode.HEAT
         self._preset_modes = ["ECO", "COMFORT"]
