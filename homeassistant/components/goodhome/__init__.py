@@ -21,12 +21,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass, GoodHomeHelper(entry.data), entry.entry_id
         ),
     }
-    hass.async_create_task(
-        hass.config_entries.async_forward_entry_setup(entry, PLATFORMS[0])
-    )
-    hass.async_create_task(
-        hass.config_entries.async_forward_entry_setup(entry, PLATFORMS[1])
-    )
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS[0])
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS[1])
+
     return True
 
 
